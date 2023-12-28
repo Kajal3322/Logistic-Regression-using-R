@@ -1,0 +1,696 @@
+---
+title: "Mid Term Project"
+author: "Kajal Dhimmar"
+date: "2023-07-26"
+output: word_document
+---
+-----------------------------------------------------------------------------------------------------------
+
+1) The datafile All Greens Sales Data.csv shows the following variables:
+The data (X1, X2, X3, X4, X5, X6) are for each franchise store.
+Y= annual net sales/$1000
+X1 = number sq. ft./1000
+X2 = inventory/$1000
+X3 = amount spent on advertising/$1000
+X4 = size of sales district/1000 families
+X5 = number of competing stores in district
+(a) Fit an MLR model to Y as a function of the potential predictors in the datafile.
+(b) Fit an SVM model to Y as a function of the potential predictors in the datafile.
+(c) Compare the two models.
+
+
+
+
+
+
+
+
+
+
+
+2) The datafile CBC.csv shows the following variables:
+Seq# ID# Gender M R F FirstPurch ChildBks
+YouthBks CookBks DoltYBks RefBks ArtBks GeogBks ItalCook
+ItalHAtlas ItalArt Florence
+(a) Fit a logistic regression model for Florence as a function of the potential predictors in the
+datafile CBC.csv
+(b) Fit an SVM model for Florence as a function of the potential predictors in the datafile
+CBC.csv data.
+(c) Compare the two models.
+
+--------------------------------------------------------------------------------------------------------
+
+
+
+
+```{r}
+PRF <- function(CM)
+{
+Precision1 <- CM[2,2]/(CM[2,1]+CM[2,2])
+Recall1    <- CM[2,2]/(CM[1,2]+CM[2,2])
+F1.1       <- 2/((1/Recall1)+(1/Precision1))
+Precision0 <- CM[1,1]/(CM[1,1]+CM[1,2])
+Recall0    <- CM[1,1]/(CM[1,1]+CM[2,1])
+
+F1.0 <- 2/((1/Recall0)+(1/Precision0))
+temp <- c(Precision1, Recall1, F1.1, Precision0, Recall0, F1.0)
+
+#df <- as.data.frame(temp)
+#colnames(df) <- cbind.data.frame("Prec1", "Recall1, "F1.1", "Prec0", "Recall0, "F1.0")
+return(temp)
+}
+```
+
+
+```{r}
+PRF1 <- function(CM)
+{
+Precision1 <- CM[2,2]/(CM[2,1]+CM[2,2])
+Recall1 <- CM[2,2]/(CM[1,2]+CM[2,2])
+F11 <- 2/((1/Recall1)+(1/Precision1))
+Precision0 <- CM[1,1]/(CM[1,1]+CM[1,2])
+Recall0 <- CM[1,1]/(CM[1,1]+CM[2,1])
+F10 <- 2/((1/Recall0)+(1/Precision0))
+result <- c(Precision1, Recall1, F11, Precision0, Recall0, F10)
+names(result) <- c("Prec.1", "Rec.1", "F1.1", "Prec.0", "Rec.0", "F1.0")
+result
+}
+```
+
+
+
+****************
+Problem : 1
+****************
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(a) Fit an MLR model to Y as a function of the potential predictors in the datafile.
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+```{r}
+D <- read.csv("All Greens Sales Data.csv")
+dim(D) 
+names(D)
+head(D)
+```
+
+
+```{r}
+summary(D)
+```
+```{r}
+str(D)
+```
+
+```{r}
+# Fit the MLR model
+lm1 <- lm(Y ~ x1 + x2 + x3 + x4 + x5, data = D)
+summary(lm1)
+library(car)
+vif(lm1)
+```
+
+Here all VIF's are not < 5, 
+
+We'll drop x2 here
+
+
+
+```{r}
+# Fit the MLR model
+lm2 <- lm(Y ~ x1  + x3 + x4 + x5, data = D)
+summary(lm2)
+library(car)
+vif(lm2)
+
+```
+Now, we'll drop x4 because the VIF's is >5 for x4
+
+
+```{r}
+# Fit the MLR model
+lm3 <- lm(Y ~ x1  + x3 + x5, data = D)
+summary(lm3)
+library(car)
+vif(lm3)
+
+```
+
+Now all the VIF's are < 5 and all the P-values are <0.05. 
+
+We can test normality of residuals:
+
+```{r}
+#test Normality of residuals
+
+shapiro.test(lm3$residuals)
+```
+
+```{r}
+# type p-value below
+
+
+# create data frame of residuals from the SLR model
+df.resid <- as.data.frame(lm2$residuals)
+colnames(df.resid) <- "Residuals"
+
+#qq plot with normal line (normality test for residuals from lm2)
+library(ggplot2)
+ggplot(df.resid)+stat_qq(aes(sample=Residuals)) + 
+  geom_qq_line(aes(sample=Residuals))+
+  geom_text(aes(x=0.5, y=-2, color="red", label="Shapiro-test p-value = 0.2611"))+
+  theme(legend.position="none")+ggtitle("All Green sales data Example: Normality test for residuals")
+```
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(b) Fit an SVM model to Y as a function of the potential predictors in the datafile.
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+```{r}
+# Load required libraries
+library(e1071)
+
+# Fit the SVM model
+svm1 <- svm(Y ~ x1 + x2 + x3 + x4 + x5,  kernel = "radial", type = "eps-regression", probability = TRUE, data = D, cost = 10)
+svm1
+names(svm1)
+
+```
+```{r}
+#SVR performance measures are: (1) RMSE = Root Mean Squarred Error, (2) The R-square value (not my preferred choice)
+#RMSE = average of squarred svm2residuals = sqrt(mean(svm2residuals**2))
+
+
+RMSE <- function(obs,pred)
+{
+temp <-sqrt(sum(obs-pred)**2)
+temp
+}
+obs <- c(1,1)
+pred <- c(1,1)
+RMSE(obs,pred)
+```
+```{r}
+y.SVM.fitted <- predict(svm1, D)
+```
+```{r}
+svm_predictions <- predict(svm1, D)
+svm_mse <- mean((D$Y - svm_predictions)**2)
+svm_rmse <- sqrt(svm_mse)
+cat("SVM Model RMSE:", svm_rmse, "\n")
+```
+
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+df1 <- cbind.data.frame(D$Y,y.SVM.fitted)
+
+P1 <- ggplot(df1, aes(x=D$Y,y=y.SVM.fitted)) + geom_point()+
+geom_abline(intercept = 0, slope = 1,color="blue")+
+annotate("text", x = 500, y = 500, label = "Y=X line")+
+annotate("text", x = 500, y = 800, label = "RMSE = 15.66849 ")
+P1
+```
+
+
+
+
+
+
+
+
+++++++++++++++++++++++++++++++
+(c) Compare the two models.
+++++++++++++++++++++++++++++++
+
+
+```{r}
+# Step 3: Calculate RMSE for MLR and SVM models
+
+mlr_predictions <- predict(lm3, D)
+mlr_mse <- mean((D$Y - mlr_predictions)**2)
+mlr_rmse <- sqrt(mlr_mse)
+
+svm_predictions <- predict(svm1, D)
+svm_mse <- mean((D$Y - svm_predictions)**2)
+svm_rmse <- sqrt(svm_mse)
+
+# Step 4: Compare RMSE between MLR and SVM models
+cat("MLR Model RMSE:", mlr_rmse, "\n")
+cat("SVM Model RMSE:", svm_rmse, "\n")
+```
+
+Here we have, MLR Model RMSE: 37.60968 & SVM Model RMSE: 15.66849.
+
+The SVM model has a significantly lower RMSE (15.66849) compared to the MLR model (37.60968).
+A lower RMSE indicates that the SVM model's predictions are closer to the actual values compared to the MLR model. 
+Therefore, the SVM model is performing better in terms of minimizing prediction errors.
+
+In general, when comparing models for regression tasks, a model with a lower RMSE is preferred as it demonstrates better predictive performance.
+The SVM model's lower RMSE suggests that it is a better fit for the data and has a higher accuracy in predicting the target variable compared to the MLR model.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+****************
+Problem : 2
+****************
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(a) Fit a logistic regression model for Florence as a function of the potential predictors in the datafile CBC.csv
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+```{r}
+C <- read.csv("CBC.csv")
+dim(C) 
+names(C)
+head(C)
+tail(C)
+```
+```{r}
+summary(C)
+```
+
+```{r}
+str(C)
+```
+# Data Overview
+
+```{r}
+
+# counts of missing values
+n.NA <- colSums(is.na(C))
+n.NA
+library(Amelia)
+missmap(D, col=c("red","yellow"),main = "Missingness Map Titanic Data set")
+```
+We don't have any missing values in this data set, so we can start our analysis,
+
+
+# Split Dataset:.
+
+
+In predictive analytics, it is always a good idea (mandatory in many situations) to randomly split the data set into a 75% training set and a 25% test set.
+
+We build the model on the training set set, and evaluate its performance on both the training and the test sets.
+
+```{r}
+M <- 0.25*nrow(C) # # of rows in the test set
+M
+#to be able to replicate the results, set initial seed for random 
+#number generator
+set.seed(11731)
+holdout <- sample(1:nrow(C), M, replace=F)
+holdout
+C.train <- C[-holdout, ]   
+C.test <-  C[holdout, ]
+
+```
+
+
+```{r}
+dim(C.train) #  
+dim(C.test)  #
+
+```
+
+```{r}
+
+# Fit the logistic regression model
+lr1 <- glm(Florence ~ Gender + M + R + F + FirstPurch + ChildBks + YouthBks + CookBks + DoltYBks + RefBks + ArtBks + GeogBks + ItalCook + ItalHAtlas + ItalArt,
+                      data = C.train, family = binomial )
+summary(lr1)
+library(car)
+vif(lr1)
+
+```
+
+Here we'll drop VIf's  >5 one by one first, then we'll look p-values for our model.
+
+Let's drop "F" first, which has highest VIF.
+
+
+```{r}
+
+# Fit the logistic regression model
+lr2 <- glm(Florence ~ Gender + M + R + FirstPurch + ChildBks + YouthBks + CookBks + DoltYBks + RefBks + ArtBks + GeogBks + ItalCook + ItalHAtlas + ItalArt,
+                      data = C.train, family = binomial )
+summary(lr2)
+library(car)
+vif(lr2)
+
+```
+
+
+Now, We'll drop "first Purchase"
+
+
+```{r}
+
+# Fit the logistic regression model
+lr3 <- glm(Florence ~ Gender + M + R + ChildBks + YouthBks + CookBks + DoltYBks + RefBks + ArtBks + GeogBks + ItalCook + ItalHAtlas + ItalArt,
+                      data = C.train, family = binomial )
+summary(lr3)
+library(car)
+vif(lr3)
+
+```
+
+In above Model all VIF's are <5
+
+Now we'll drop all  the P- Values, which are > 0.05
+
+```{r}
+# Fit the logistic regression model
+lr4 <- glm(Florence ~ Gender + R + ChildBks + YouthBks + CookBks + DoltYBks  + ArtBks + GeogBks + ItalCook, data = C, family = binomial )
+summary(lr4)
+library(car)
+vif(lr4)
+```
+Now all the VIF's are <5, and P-value's are also < 0.05
+
+
+
+#Performance Measures of a Binary Classifier
+#Precision and Recall for both categories, training set
+#CM is confusion matrix
+#-------------------------------------------
+#         Observed
+#---------0--------1----
+#Pred
+#0    CM[1,1]  CM[1,2]       =  TN    FN
+#1    CM[2,1]  CM[2 ,2]         FP    TP
+
+#Precision and Recall formulas: 
+#Category 1
+# Precision = TP/(TP+FP),  diag/row sum
+# Recall    = TP/(TP+FN)   diag/column sum
+
+#Precision1 <- CM.train[2,2]/(CM.train[2,1]+CM.train[2,2]) # diag/row sum
+#Recall1    <- CM.train[2,2]/(CM.train[1,2]+CM.train[2,2]) # diag/column sum
+#------------------------------------------------------------------
+#Category 0
+#Precision0 <- CM.train[1,1]/(CM.train[1,1]+CM.train[1,2]) # diag/row sum
+#Recall0    <- CM.train[1,1]/(CM.train[1,1]+CM.train[2,1]) # diag/column sum
+#------------------------------------------------------------------
+```{r}
+#Predict training data using the model lr4
+observed.train <- C.train$Florence
+predicted.train <-predict(lr4, C.train, type = 'response')
+predicted.train <- round(predicted.train)
+
+#Predict testing data using the model lr4
+observed.test <- C.test$Florence
+predicted.test <-predict(lr4, C.test, type = 'response')
+predicted.test <- round(predicted.test)
+```
+
+
+
+```{r}
+CM <- function(x,y)
+{
+# x = predicted, y = observed
+table(x,y)
+}
+
+CM.train <- CM(C.train$Florence, predicted.train)
+CM.test <- CM(C.test$Florence, predicted.test)
+```
+
+
+---------------------------------------
+```{r}
+
+PRF(CM.train)
+PRF(CM.test)
+
+```
+
+
+
+```{r}
+# ---------------------------------------------------------------------
+#install.packages("ROCR",dependencies=TRUE)
+library(ROCR)
+
+#Predict training data using the model LR1
+observed.train <- C.train$Florence
+predicted.train <-predict(lr4, C.train, type = 'response')
+predicted.train <- round(predicted.train)
+
+#Predict testing data using the model LR1
+observed.test <- C.test$Florence
+predicted.test <-predict(lr4, C.test, type = 'response')
+predicted.test <- round(predicted.test)
+
+Y <- observed.train
+str(Y)  # int [1:784] 1 0 0 1 0 1 0 1 1 1 ...
+
+pred <- prediction(predicted.train, Y)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+```
+
+
+```{r}
+# -----------------------------------------------------------
+library(ROCR)
+# plot a ROC curve for a single prediction run
+# and color the curve according to cutoff.
+
+pred <- prediction(predicted.train, Y)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+data(ROCR.simple)
+df <- data.frame(ROCR.simple)
+pred <- prediction(df$predictions, df$labels)
+perf <- performance(pred,"tpr","fpr")
+plot(perf,colorize=TRUE)
+
+# ------------------------------------------------------
+
+library(ROCR)
+p <- predict(lr4, newdata=subset(C.train), type="response")
+pr <- prediction(p, C.train$Florence)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+#plot(prf)
+
+DF.PR <- cbind.data.frame(prf@x.values[[1]], prf@y.values[[1]], prf@alpha.values[[1]])
+colnames(DF.PR) <- c("FPR","TPR","cutoff")
+head(DF.PR)
+
+library(ggplot2)
+proc.train <- ggplot(DF.PR, aes(x=FPR, y=TPR)) + geom_line()
+proc.train  <- proc.train  + geom_segment(aes(x = 0, y = 0, xend = 1, yend = 1), data = DF.PR)+
+        geom_segment(aes(x = 0, y = 0, xend = 1, yend = 0), data = DF.PR)+
+        geom_segment(aes(x = 1, y = 0, xend = 1, yend = 1), data = DF.PR) +
+        ggtitle("ROC Curve from Logistic Regression for Titanic Data - Training Set")
+
+
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc # 0.78493
+```
+
+
+
+#-------------------------------------------------------
+# KS (Kolomogorov-Smirnov) Statistic
+# KS = maximum(TPR-FPR)
+
+
+
+```{r}
+pK1 <- ggplot()+geom_line(data=DF.PR,aes(x=cutoff,y=FPR), color='red') + 
+       geom_line(data=DF.PR,aes(x=cutoff,y=TPR), color='blue')
+
+DF.PR$diff <- DF.PR$TPR - DF.PR$FPR
+KS.train <- max(DF.PR$diff) # 0.38
+print(KS.train)
+i.m <- which.max(DF.PR$diff) # 2
+xM <- DF.PR$cutoff[i.m]
+yML <- DF.PR$FPR[i.m]
+yMU <- DF.PR$TPR[i.m]
+
+pKS.train <- pK1 + geom_segment(aes(x = xM, y = yML,
+               xend = xM, yend = yMU, colour="black"))+
+       annotate("text", x=0.4, y=0.5, label= "KS =  0.43")+ 
+       theme(legend.position = "none")+
+       ggtitle("True and Positive Rates vs Cutoff from Logistic Regression \nfor CBC Data - Training Set")
+
+library(gridExtra)
+grid.arrange(proc.train,pKS.train,nrow=2)
+
+# ------------------------------------------------------
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+(b) Fit an SVM model for Florence as a function of the potential predictors in the datafile CBC.csv data.
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+
+
+```{r}
+library(e1071)
+svm1_CBC <- svm(Florence ~ Gender + M + R + F + FirstPurch + ChildBks + YouthBks + CookBks + DoltYBks + RefBks + ArtBks + GeogBks + ItalCook + ItalHAtlas + ItalArt,
+                       family = binomial, kernel ="radial", type="C-classification", probability = TRUE, data = C.train)
+summary(svm1_CBC)
+```
+
+
+
+```{r}
+y.obs_train <- C.train$Florence
+y.SVM.fitted_train <- svm1_CBC$fitted
+CM.SVM_train <- table(y.obs_train,y.SVM.fitted_train)
+CM.SVM_train
+```
+The confusion matrix shows the number of true negatives (1336), false negatives (149), true positives (15), and false positives (0) for the training data.
+
+```{r}
+OA.SVM_train <- sum(diag(CM.SVM_train))/sum(CM.SVM_train)
+PRF1(CM.SVM_train)
+```
+
+
+```{r}
+OA.SVM_train
+```
+
+
+```{r}
+y.obs_test <- C.test$Florence
+y.SVM.fitted_test <- predict(svm1_CBC,C.test)
+CM.SVM_test <- table(y.obs_test,y.SVM.fitted_test)
+CM.SVM_test
+```
+
+
+```{r}
+OA.SVM_test <- sum(diag(CM.SVM_test))/sum(CM.SVM_test)
+PRF1(CM.SVM_test)
+```
+
+
+```{r}
+OA.SVM_test
+```
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++
+(c) Compare the two models.
+++++++++++++++++++++++++++++++++++++++++++++++++
+
+```{r}
+# Logistic Regression Metrics
+CM.lr_train <- CM(C.train$Florence, predicted.train)
+CM.lr_test <- CM(C.test$Florence, predicted.test)
+PRF.lr_train <- PRF1(CM.lr_train)
+PRF.lr_test <- PRF1(CM.lr_test)
+OA.lr_train <- sum(diag(CM.lr_train)) / sum(CM.lr_train)
+OA.lr_test <- sum(diag(CM.lr_test)) / sum(CM.lr_test)
+
+# SVM Metrics
+CM.svm_train <- table(y.obs_train, y.SVM.fitted_train)
+CM.svm_test <- table(y.obs_test, y.SVM.fitted_test)
+PRF.svm_train <- PRF1(CM.svm_train)
+PRF.svm_test <- PRF1(CM.svm_test)
+OA.svm_train <- sum(diag(CM.svm_train)) / sum(CM.svm_train)
+OA.svm_test <- sum(diag(CM.svm_test)) / sum(CM.svm_test)
+
+```
+
+
+
+
+```{r}
+# Print the metrics for both models
+
+
+
+print("Logistic Regression Metrics:")
+print(paste("Train Accuracy:", OA.lr_train))
+print(paste("Test Accuracy:", OA.lr_test))
+print(paste("Train Precision:", PRF.lr_train["Prec.1"]))
+print(paste("Test Precision:", PRF.lr_test["Prec.1"]))
+print(paste("Train Recall:", PRF.lr_train["Rec.1"]))
+print(paste("Test Recall:", PRF.lr_test["Rec.1"]))
+print(paste("Train F1-score:", PRF.lr_train["F1.1"]))
+print(paste("Test F1-score:", PRF.lr_test["F1.1"]))
+
+```
+
+
+```{r}
+print("\nSVM Metrics:")
+print(paste("Train Accuracy:", OA.svm_train))
+print(paste("Test Accuracy:", OA.svm_test))
+print(paste("Train Precision:", PRF.svm_train["Prec.1"]))
+print(paste("Test Precision:", PRF.svm_test["Prec.1"]))
+print(paste("Train Recall:", PRF.svm_train["Rec.1"]))
+print(paste("Test Recall:", PRF.svm_test["Rec.1"]))
+print(paste("Train F1-score:", PRF.svm_train["F1.1"]))
+print(paste("Test F1-score:", PRF.svm_test["F1.1"]))
+
+```
+
+From, observation
+
+Both models have similar accuracy on the test set, with the logistic regression model having a slightly higher accuracy (0.896 vs. 0.892).
+
+The logistic regression model has a higher precision (0.0566) compared to SVM (0.0000), indicating that it is better at correctly identifying positive cases (Florence = 1) in the test set.
+
+Similarly, the logistic regression model has a higher recall (0.600) compared to SVM (0.000), meaning that it can capture a greater proportion of actual positive cases in the test set.
+
+The F1-score, which considers both precision and recall, is also higher for the logistic regression model (0.103 vs. 0.000) on the test set.
+
+Overall, the logistic regression model shows better performance on the test set compared to the SVM model. However, it is worth noting that both models have relatively low precision, indicating that they struggle in correctly predicting positive cases.
